@@ -1,0 +1,9 @@
+@INPROCEEDINGS{DATE:NorKunVer26,
+  author={Norga, Quinten and Kundu, Suparna and Verbauwhede, Ingrid},
+  booktitle={2026 Design, Automation & Test in Europe Conference (DATE)}, 
+  title={ML-DSA-OSH: An Efficient, Open-Source Hardware Implementation of ML-DSA}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-3},
+  doi={10.23919/DATE69613.2026.11539720}}
