@@ -1,0 +1,16 @@
+ref_combined/src/sha3_pkg.vhd
+ref_combined/src/keccak_pkg.vhd
+ref_combined/src/regn.vhd
+ref_combined/src/countern.vhd
+ref_combined/src/sr_reg.vhd
+ref_combined/src/sipo.vhd
+ref_combined/src/piso.vhd
+ref_combined/src/keccak_cons.vhd
+ref_combined/src/keccak_round.vhd
+ref_combined/src/keccak_bytepad.vhd
+ref_combined/src/keccak_fsm1.vhd
+ref_combined/src/keccak_fsm2.vhd
+ref_combined/src/sha3_fsm3.vhd
+ref_combined/src/keccak_datapath.vhd
+ref_combined/src/keccak_control.vhd
+ref_combined/src/keccak_top.vhd

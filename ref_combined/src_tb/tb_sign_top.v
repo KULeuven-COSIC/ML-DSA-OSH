@@ -51,13 +51,28 @@
 `timescale 1ns / 1ps
 `define P 10
 
+// Number of test vectors per parameter set, e.g. xvlog -d NUM_TV_87=3 (0 skips that set)
+`ifndef NUM_TV_44
+`define NUM_TV_44 15
+`endif
+`ifndef NUM_TV_65
+`define NUM_TV_65 15
+`endif
+`ifndef NUM_TV_87
+`define NUM_TV_87 15
+`endif
+
 module tb_sign_top;
     reg clk = 1, rst = 1, start = 0;
 
     reg [2 - 1 : 0] mode = 2; // Sign()
     reg [3 - 1 : 0] sec_lvl = 2; // ML-DSA-44
     
-    localparam NUM_TV = 15; // max. 15
+    localparam NUM_TV_2 = `NUM_TV_44;
+    localparam NUM_TV_3 = `NUM_TV_65;
+    localparam NUM_TV_5 = `NUM_TV_87;
+    localparam NUM_TV_23 = (NUM_TV_2 > NUM_TV_3) ? NUM_TV_2 : NUM_TV_3;
+    localparam NUM_TV = (NUM_TV_23 > NUM_TV_5) ? NUM_TV_23 : NUM_TV_5; // array depth
     localparam MAX_MLEN_2 = 8192*8; // pad testvectors to this length
     localparam MAX_MLEN_3 = 8192*8; // pad testvectors to this length
     localparam MAX_MLEN_5 = 8192*8; // pad testvectors to this length
@@ -92,7 +107,7 @@ module tb_sign_top;
     reg [0 : `CTX_WIDTH - 1]    context_2       [NUM_TV - 1 : 0];
     reg [0 : 8 - 1]             ctxlen_2        [NUM_TV - 1 : 0];
     reg [0 : `SIG_WIDTH_2 - 1]  sig_2           [NUM_TV - 1 : 0];
-    reg [0 : `SIG_WIDTH_2 - 1]  sig_2_out                       ;
+    reg [0 : `SIG_WIDTH_2 + 64 - 1] sig_2_out                       ; // +64: the last (partial) hint word stays in range
     
     reg [0 : MAX_MLEN_3 - 1]    message_3       [NUM_TV - 1 : 0];
     reg [0 : MAX_FMTDLEN_3 - 1] message_fmtd_3  [NUM_TV - 1 : 0];
@@ -101,7 +116,7 @@ module tb_sign_top;
     reg [0 : `CTX_WIDTH - 1]    context_3       [NUM_TV - 1 : 0];
     reg [0 : 8 - 1]             ctxlen_3        [NUM_TV - 1 : 0];
     reg [0 : `SIG_WIDTH_3 - 1]  sig_3           [NUM_TV - 1 : 0];
-    reg [0 : `SIG_WIDTH_3 - 1]  sig_3_out                       ;
+    reg [0 : `SIG_WIDTH_3 + 64 - 1] sig_3_out                       ;
     
     reg [0 : MAX_MLEN_5 - 1]    message_5       [NUM_TV - 1 : 0];
     reg [0 : MAX_FMTDLEN_5 - 1] message_fmtd_5  [NUM_TV - 1 : 0];
@@ -110,13 +125,22 @@ module tb_sign_top;
     reg [0 : `CTX_WIDTH - 1]    context_5       [NUM_TV - 1 : 0];
     reg [0 : 8 - 1]             ctxlen_5        [NUM_TV - 1 : 0];
     reg [0 : `SIG_WIDTH_5 - 1]  sig_5           [NUM_TV - 1 : 0];
-    reg [0 : `SIG_WIDTH_5 - 1]  sig_5_out                       ;
+    reg [0 : `SIG_WIDTH_5 + 64 - 1] sig_5_out                       ;
 
-    reg [5 - 1 : 0]     c; // current testvector
+    reg [16 - 1 : 0]    c; // current testvector
     reg [32 - 1 : 0]    ctr; // current data_word
     reg [16 - 1 : 0]    temp_len;
 
     integer start_time, i, j;
+    integer n_pass = 0, n_fail = 0;
+    reg     vec_err = 0;
+
+    task finish_tb;
+    begin
+        $display("TEST SUMMARY: %0d passed, %0d failed", n_pass, n_fail);
+        $finish;
+    end
+    endtask
     integer average;
   
     localparam
@@ -225,7 +249,7 @@ module tb_sign_top;
         2: begin
             
             case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_2 == 0) sec_lvl <= 3; else begin
                 start_time <= $time;
                 ctr <= ctr + 1;
                 
@@ -289,7 +313,7 @@ module tb_sign_top;
                 valid_i <= 1;
                 
                 if (ready_i) begin
-                    if (ctr * 8 >= mlen_2[c] + 2 + ctxlen_2[c] - 8) begin
+                    if ((ctr * 8 >= mlen_2[c] + 2 + ctxlen_2[c] - 8) || (mlen_2[c] + ctxlen_2[c] <= 6)) begin
                         state  <= S_SEND_SK_K;
                         ctr    <= 0;
                         data_i <= sk_2[c][`SKPK_RHO_WIDTH +: 64];
@@ -419,19 +443,21 @@ module tb_sign_top;
                 
                 for (i = 0; i < `SIG_BYTES_2; i = i + 1) begin
                     if (sig_2_out[i*8 +: 8] !== sig_2[c][i*8 +: 8])
-                        $display("[ML-DSA-II.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_2[c][i*8 +: 8], sig_2_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-II.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_2[c][i*8 +: 8], sig_2_out[i*8 +: 8]); vec_err = 1; end 
                 
                 end
             end 
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c <= c + 1;
                 state <= S_INIT;
                 
-                if (c == NUM_TV - 1) begin
+                if (c == NUM_TV_2 - 1) begin
                     c <= 0;
                     sec_lvl <= 3;
-                    $display ("Moving to ML-DSA-III.Sign. ML-DSA-II completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("Moving to ML-DSA-III.Sign. ML-DSA-II completed in avg. %d clock cycles", average/NUM_TV_2);
                     average <= 0;
                 end
             end
@@ -439,7 +465,7 @@ module tb_sign_top;
         end
         3: begin
         case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_3 == 0) sec_lvl <= 5; else begin
                 start_time <= $time;
                 ctr <= ctr + 1;
                 
@@ -503,7 +529,7 @@ module tb_sign_top;
                 valid_i <= 1;
                 
                 if (ready_i) begin
-                    if (ctr * 8 >= mlen_3[c] + 2 + ctxlen_3[c] - 8) begin
+                    if ((ctr * 8 >= mlen_3[c] + 2 + ctxlen_3[c] - 8) || (mlen_3[c] + ctxlen_3[c] <= 6)) begin
                         state  <= S_SEND_SK_K;
                         ctr    <= 0;
                         data_i <= sk_3[c][`SKPK_RHO_WIDTH +: 64];
@@ -633,19 +659,21 @@ module tb_sign_top;
                 
                 for (i = 0; i < `SIG_BYTES_3; i = i + 1) begin
                     if (sig_3_out[i*8 +: 8] !== sig_3[c][i*8 +: 8])
-                        $display("[ML-DSA-III.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_3[c][i*8 +: 8], sig_3_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-III.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_3[c][i*8 +: 8], sig_3_out[i*8 +: 8]); vec_err = 1; end 
                 
                 end
             end 
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c <= c + 1;
                 state <= S_INIT;
                 
-                if (c == NUM_TV - 1) begin
+                if (c == NUM_TV_3 - 1) begin
                     c <= 0;
                     sec_lvl <= 5;
-                    $display ("Moving to ML-DSA-V.Sign. ML-DSA-III completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("Moving to ML-DSA-V.Sign. ML-DSA-III completed in avg. %d clock cycles", average/NUM_TV_3);
                     average <= 0;
                 end
             end
@@ -653,7 +681,7 @@ module tb_sign_top;
         end
         5: begin
         case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_5 == 0) finish_tb; else begin
                 start_time <= $time;
                 ctr <= ctr + 1;
                 
@@ -847,20 +875,22 @@ module tb_sign_top;
                 
                 for (i = 0; i < `SIG_BYTES_5; i = i + 1) begin
                     if (sig_5_out[i*8 +: 8] !== sig_5[c][i*8 +: 8])
-                        $display("[ML-DSA-V.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_5[c][i*8 +: 8], sig_5_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-V.Sign, KAT #%d, byte sig{%d}] WRONG: Expected %h, received %h", c, i+1, sig_5[c][i*8 +: 8], sig_5_out[i*8 +: 8]); vec_err = 1; end 
                 
                 end
             end 
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c <= c + 1;
                 state <= S_INIT;
                 
-                if (c == NUM_TV-1) begin
+                if (c == NUM_TV_5-1) begin
                     c <= 0;
-                    $display ("ML-DSA.Sign testbench done. ML-DSA-V completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("ML-DSA.Sign testbench done. ML-DSA-V completed in avg. %d clock cycles", average/NUM_TV_5);
                     average <= 0;
-                    $finish;
+                    finish_tb;
                 end
             end
             endcase

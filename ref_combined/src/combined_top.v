@@ -143,6 +143,7 @@ module combined_top #(
     reg [511:0] MU = 0;
     
     reg fsm1_even, COMP_FAIL, fail;
+    reg z_rejected; // Verify: ||z||_inf >= gamma1 - beta (FIPS 204, Alg. 8, line 13)
     
     reg cstart_fsm0, cstart_fsm1, cstart_fsm2;
     reg nstart_fsm0, nstart_fsm1, nstart_fsm2;
@@ -437,6 +438,7 @@ module combined_top #(
     wire poly_ready_i_hint;
     wire poly_valid_o_hint;
     reg  poly_ready_o_hint;
+    wire hint_invalid; // Verify: malformed hint encoding (FIPS 204, Alg. 21)
     reg  [63:0] di_hint;
     reg  [95:0] poly_di0_hint, poly_di1_hint;
     wire [95:0] poly_do_hint;
@@ -447,7 +449,7 @@ module combined_top #(
         ready_i_hint, poly_di0_hint, poly_di1_hint,
         poly_valid_i_hint, poly_ready_i_hint,
         poly_do_hint, poly_valid_o_hint,
-        poly_ready_o_hint
+        poly_ready_o_hint, hint_invalid
     );
         
     // MakeHint
@@ -1200,6 +1202,11 @@ module combined_top #(
             addra_ram1  = ctr_dec;
             dia_ram1    = {1'd0, do_dec[3*23+:23], 1'd0, do_dec[2*23+:23], 1'd0, do_dec[1*23+:23], 1'd0, do_dec[0*23+:23]};
             
+            // Decoder -> norm check (reject if ||z||_inf >= gamma1 - beta)
+            mode_norm   = G1_SUB_BETA;
+            validi_norm = valid_o_dec;
+            di_norm     = dia_ram1;
+            
             // GenC -> BRAM_C    
             wea_ram3    = valid_o_c;
             addra_ram3  = ctr_c;
@@ -1568,7 +1575,7 @@ module combined_top #(
             
             // unload
             valid_o = ((ctr == 4 && sec_lvl == 2) || (ctr == 6 && sec_lvl == 3) || (ctr == 8 && sec_lvl == 5)) ? 1 : 0;
-            data_o  = ((ctr == 4 && sec_lvl == 2) || (ctr == 6 && sec_lvl == 3) || (ctr == 8 && sec_lvl == 5)) ? fail : 0;
+            data_o  = ((ctr == 4 && sec_lvl == 2) || (ctr == 6 && sec_lvl == 3) || (ctr == 8 && sec_lvl == 5)) ? (fail || z_rejected || hint_invalid) : 0;
             nstate0  = (ready_o && valid_o) ? VY_INIT : VY_COMPARE;
         end
         {2'd2,FSM0_INIT}: begin
@@ -2309,7 +2316,7 @@ module combined_top #(
     
         ready_i_decomp_last <= ready_i_decomp;
     
-        norm_rejected <= (rej_norm) ? 1 : norm_rejected;
+        norm_rejected <= (rej_norm && mode != 2'd1) ? 1 : norm_rejected; // Verify uses z_rejected
         
         shake_verif_done <= shake_verif_done;
         ntt_verif_done <= ntt_verif_done;
@@ -2448,6 +2455,7 @@ module combined_top #(
                 mlen <= 0;
                 ctr  <= 0;
                 fail <= 0;
+                z_rejected <= 0;
                 COMP_FAIL    <= 0;
                 ctr_dec <= 0;
                 ctr_c   <= 0;
@@ -2479,6 +2487,7 @@ module combined_top #(
                 ctr_dec <= (ctr_dec == {L, 6'd0}-1 && valid_o_dec && ready_o_dec) ? 0 
                              : (valid_o_dec) ? ctr_dec + 1 : ctr_dec;
                 ctr_c   <= (valid_o_c)   ? ctr_c   + 1 : ctr_c;
+                z_rejected <= (rej_norm) ? 1 : z_rejected;
                 
                 start_op[0] <= (ctr_dec == {L, 6'd0}-1 && valid_o_dec && ready_o_dec)  ? 1 :0;
                 

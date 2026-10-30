@@ -9,6 +9,25 @@ The design supports all three NIST security levels (II, III and V) and operation
 * [testbench](ref_combined/src_tb/): testbenches for all modes of operation.
 * [NIST KAT's](KAT): testvectors for ML-DSA-44, ML-DSA-67 and ML-DSA-87 (KeyGen, SigGen, SigVer).
 
+## :test_tube: Testing
+
+Test vectors, all in the same line-based format as [KAT](KAT) (`SigVer_result`: `1` = reject):
+
+* the NIST KATs in [KAT](KAT);
+* the [C2SP Wycheproof](https://github.com/C2SP/wycheproof) ML-DSA verify vectors (pinned commit, downloaded and converted by `make wycheproof`);
+* fresh vectors from the [dilithium-py](https://github.com/GiacomoPope/dilithium-py) reference model (`make gen SEED=<n> N=<n>`), including malformed signatures that isolate single Verify checks (z bound, hint encoding, zero hints, ...). See [model/gen_vectors.py](model/gen_vectors.py).
+
+```sh
+pip install -r model/requirements.txt
+make model                                  # reference model reproduces the NIST KATs
+make sim SIM=xsim TB=verify                 # NIST KATs, Vivado xsim (TB = keygen | sign | verify)
+make sim SIM=xsim TB=verify VEC=wycheproof  # Wycheproof vectors
+make sim SIM=verilator TB=sign VEC=gen      # generated vectors, GHDL + Verilator
+make lint                                   # GHDL + Verilator lint
+```
+
+`SIM=xsim` sources the Vivado settings from `$VIVADO_SETTINGS` if `xvlog` is not on the `PATH`. `SIM=verilator` translates the VHDL Keccak core to Verilog with GHDL and needs `ghdl` and `verilator` (>= 5), e.g. from the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build). Failing vectors can be mapped back to their Wycheproof tcId or generator category with `python3 model/report.py <sim.log> <vector dir>`. GitHub Actions runs the model check, lint and all of these vector sets on every push.
+
 ## :book: Bibliography
 
 If you use or build upon the code in this repository, please cite our paper using our [citation key](CITATION).

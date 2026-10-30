@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  OSS_CAD_SUITE_DATE: "2026-10-01"
+  PYTHON: python3
+
+jobs:
+  model:
+    name: Python reference model
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r model/requirements.txt pyflakes
+      - name: pyflakes
+        run: python -m pyflakes model/
+      - name: Model reproduces the NIST KATs
+        run: make model
+
+  lint:
+    name: Lint (GHDL + Verilator)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache OSS CAD Suite
+        id: cache-oss
+        uses: actions/cache@v4
+        with:
+          path: oss-cad-suite
+          key: oss-cad-suite-${{ env.OSS_CAD_SUITE_DATE }}
+      - name: Download OSS CAD Suite
+        if: steps.cache-oss.outputs.cache-hit != 'true'
+        run: |
+          d=${OSS_CAD_SUITE_DATE}
+          curl -sSfL "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/$d/oss-cad-suite-linux-x64-${d//-/}.tgz" | tar xz
+      - run: echo "$PWD/oss-cad-suite/bin" >> "$GITHUB_PATH"
+      - run: make lint
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-logs
+          path: sim/build/lint/*.log
+
+  sim:
+    name: Simulation (GHDL + Verilator)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r model/requirements.txt
+      - name: Cache OSS CAD Suite
+        id: cache-oss
+        uses: actions/cache@v4
+        with:
+          path: oss-cad-suite
+          key: oss-cad-suite-${{ env.OSS_CAD_SUITE_DATE }}
+      - name: Download OSS CAD Suite
+        if: steps.cache-oss.outputs.cache-hit != 'true'
+        run: |
+          d=${OSS_CAD_SUITE_DATE}
+          curl -sSfL "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/$d/oss-cad-suite-linux-x64-${d//-/}.tgz" | tar xz
+      - run: echo "$PWD/oss-cad-suite/bin" >> "$GITHUB_PATH"
+
+      - name: NIST KATs (KeyGen, Sign, Verify)
+        run: |
+          for tb in keygen sign verify; do make sim SIM=verilator TB=$tb VEC=kat; done
+      - name: Wycheproof verify vectors
+        run: make sim SIM=verilator TB=verify VEC=wycheproof
+      - name: Fresh vectors from the reference model (seed = run id)
+        run: |
+          make gen SEED=${{ github.run_id }} N=2
+          for tb in keygen sign verify; do make sim SIM=verilator TB=$tb VEC=gen; done
+      - name: Failure report
+        if: failure()
+        run: |
+          for d in sim/build/verilator_*; do
+            v=${d#*verilator_*_}
+            case $v in KAT) vd=KAT;; *) vd=sim/build/vectors/$v;; esac
+            echo "== $d"; python3 model/report.py "$d/sim.log" "$vd" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sim-logs
+          path: |
+            sim/build/verilator_*/sim.log
+            sim/build/verilator_*/verilator.log
+            sim/build/vectors/gen

@@ -51,13 +51,28 @@
 `timescale 1ns / 1ps
 `define P 10
 
+// Number of test vectors per parameter set, e.g. xvlog -d NUM_TV_87=3 (0 skips that set)
+`ifndef NUM_TV_44
+`define NUM_TV_44 25
+`endif
+`ifndef NUM_TV_65
+`define NUM_TV_65 25
+`endif
+`ifndef NUM_TV_87
+`define NUM_TV_87 25
+`endif
+
 module tb_keygen_top;
     reg clk = 1, rst = 0, start = 0;
 
     reg [2 - 1 : 0] mode = 0; // KeyGen()
     reg [3 - 1 : 0] sec_lvl = 2; // ML-DSA-44
       
-    localparam  NUM_TV = 25; //max. 25
+    localparam NUM_TV_2 = `NUM_TV_44;
+    localparam NUM_TV_3 = `NUM_TV_65;
+    localparam NUM_TV_5 = `NUM_TV_87;
+    localparam NUM_TV_23 = (NUM_TV_2 > NUM_TV_3) ? NUM_TV_2 : NUM_TV_3;
+    localparam NUM_TV = (NUM_TV_23 > NUM_TV_5) ? NUM_TV_23 : NUM_TV_5; // array depth
       
     reg valid_i, ready_o;
     wire ready_i, valid_o;
@@ -96,10 +111,19 @@ module tb_keygen_top;
     reg [0 : `SK_WIDTH_5 - 1]   sk_5    [NUM_TV - 1 : 0];
     reg [0 : `SK_WIDTH_5 - 1]   sk_5_out                ;
     
-    reg [5 - 1 : 0]     c; // current testvector
+    reg [16 - 1 : 0]    c; // current testvector
     reg [32 - 1 : 0]    ctr; // current data_word
 
     integer start_time, i;
+    integer n_pass = 0, n_fail = 0;
+    reg     vec_err = 0;
+
+    task finish_tb;
+    begin
+        $display("TEST SUMMARY: %0d passed, %0d failed", n_pass, n_fail);
+        $finish;
+    end
+    endtask
     integer average;
   
     localparam
@@ -158,7 +182,7 @@ module tb_keygen_top;
         case(sec_lvl)
         2: begin
             case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_2 == 0) sec_lvl <= 3; else begin
                 start_time <= $time;
                 rst <= 1;
                 ctr <= ctr + 1;
@@ -277,7 +301,7 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `PK_BYTES_2; i = i + 1) begin
                     if (pk_2_out[i*8 +: 8] !== pk_2[c][i*8 +: 8])
-                        $display("[ML-DSA-II.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_2[c][i*8 +: 8], pk_2_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-II.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_2[c][i*8 +: 8], pk_2_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_CHECK_SK;
@@ -286,20 +310,22 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `SK_BYTES_2; i = i + 1) begin
                     if (sk_2_out[i*8 +: 8] !== sk_2[c][i*8 +: 8])
-                        $display("[ML-DSA-II.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_2[c][i*8 +: 8], sk_2_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-II.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_2[c][i*8 +: 8], sk_2_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_STOP;
             end
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c       <= c + 1;
                 state <= S_INIT;
 
-                if (c == NUM_TV-1) begin
+                if (c == NUM_TV_2-1) begin
                     c <= 0;
                     sec_lvl <= 3;
-                    $display ("Moving to ML-DSA-III.KeyGen. ML-DSA-II completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("Moving to ML-DSA-III.KeyGen. ML-DSA-II completed in avg. %d clock cycles", average/NUM_TV_2);
                     average <= 0;
                 end
             end
@@ -307,7 +333,7 @@ module tb_keygen_top;
         end
         3: begin
             case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_3 == 0) sec_lvl <= 5; else begin
                 start_time = $time;
                 rst <= 1;
                 ctr <= ctr + 1;
@@ -427,7 +453,7 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `PK_BYTES_3; i = i + 1) begin
                     if (pk_3_out[i*8 +: 8] !== pk_3[c][i*8 +: 8])
-                        $display("[ML-DSA-III.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_3[c][i*8 +: 8], pk_3_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-III.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_3[c][i*8 +: 8], pk_3_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_CHECK_SK;
@@ -436,20 +462,22 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `SK_BYTES_3; i = i + 1) begin
                     if (sk_3_out[i*8 +: 8] !== sk_3[c][i*8 +: 8])
-                        $display("[ML-DSA-III.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_3[c][i*8 +: 8], sk_3_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-III.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_3[c][i*8 +: 8], sk_3_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_STOP;
             end
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c       <= c + 1;
                 state <= S_INIT;
 
-                if (c == NUM_TV-1) begin
+                if (c == NUM_TV_3-1) begin
                     c <= 0;
                     sec_lvl <= 5;
-                    $display ("Moving to ML-DSA-V.KeyGen. ML-DSA-III completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("Moving to ML-DSA-V.KeyGen. ML-DSA-III completed in avg. %d clock cycles", average/NUM_TV_3);
                     average <= 0;
                 end
             end
@@ -457,7 +485,7 @@ module tb_keygen_top;
         end
         5: begin
             case(state)
-            S_INIT: begin
+            S_INIT: if (NUM_TV_5 == 0) finish_tb; else begin
                 start_time = $time;
                 rst <= 1;
                 ctr <= ctr + 1;
@@ -577,7 +605,7 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `PK_BYTES_5; i = i + 1) begin
                     if (pk_5_out[i*8 +: 8] !== pk_5[c][i*8 +: 8])
-                        $display("[ML-DSA-V.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_5[c][i*8 +: 8], pk_5_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-V.KeyGen, KAT #%d, byte pk{%d}] WRONG: Expected %h, received %h", c, i+1, pk_5[c][i*8 +: 8], pk_5_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_CHECK_SK;
@@ -586,21 +614,23 @@ module tb_keygen_top;
                 ready_o <= 1;
                 for (i = 0; i < `SK_BYTES_5; i = i + 1) begin
                     if (sk_5_out[i*8 +: 8] !== sk_5[c][i*8 +: 8])
-                        $display("[ML-DSA-V.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_5[c][i*8 +: 8], sk_5_out[i*8 +: 8]); 
+                        begin $display("[ML-DSA-V.KeyGen, KAT #%d, byte sk{%d}] WRONG: Expected %h, received %h", c, i+1, sk_5[c][i*8 +: 8], sk_5_out[i*8 +: 8]); vec_err = 1; end 
                 end
                 
                 state <= S_STOP;
             end
             S_STOP: begin
+                if (vec_err) n_fail = n_fail + 1; else n_pass = n_pass + 1;
+                vec_err = 0;
                 ready_o <= 1;
                 c       <= c + 1;
                 state <= S_INIT;
 
-                if (c == NUM_TV-1) begin
+                if (c == NUM_TV_5-1) begin
                     c <= 0;
-                    $display ("ML-DSA.KeyGen testbench done. ML-DSA-V completed in avg. %d clock cycles", average/NUM_TV);
+                    $display ("ML-DSA.KeyGen testbench done. ML-DSA-V completed in avg. %d clock cycles", average/NUM_TV_5);
                     average <= 0;
-                    $finish;
+                    finish_tb;
                 end
             end
             endcase
