@@ -73,6 +73,9 @@ jobs:
       - name: NIST KATs (KeyGen, Sign, Verify)
         run: |
           for tb in keygen sign verify; do make sim SIM=verilator TB=$tb VEC=kat; done
+      - name: MakeHint boundary vectors (Sign, Verify)
+        run: |
+          for tb in sign verify; do make sim SIM=verilator TB=$tb VEC=makehint; done
       - name: Wycheproof verify vectors
         run: make sim SIM=verilator TB=verify VEC=wycheproof
       - name: Fresh vectors from the reference model (seed = run id)
@@ -98,7 +101,7 @@ jobs:
         run: |
           for d in sim/build/verilator_*; do
             v=${d#*verilator_*_}
-            case $v in KAT) vd=KAT;; *) vd=sim/build/vectors/$v;; esac
+            case $v in KAT) vd=KAT;; makehint_boundary) vd=vectors/$v;; *) vd=sim/build/vectors/$v;; esac
             echo "== $d"; python3 model/report.py "$d/sim.log" "$vd" || true
           done
       - uses: actions/upload-artifact@v4
