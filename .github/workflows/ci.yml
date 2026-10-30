@@ -79,6 +79,20 @@ jobs:
         run: |
           make gen SEED=${{ github.run_id }} N=2
           for tb in keygen sign verify; do make sim SIM=verilator TB=$tb VEC=gen; done
+      - name: Test summary
+        if: always()
+        run: |
+          {
+            echo "| Testbench | Vectors | Result |"
+            echo "|---|---|---|"
+            for d in sim/build/verilator_*; do
+              [ -f "$d/sim.log" ] || continue
+              n=${d#*verilator_}
+              r=$(grep -h "TEST SUMMARY" "$d/sim.log" | sed 's/TEST SUMMARY: //')
+              case $r in *" 0 failed") icon=":white_check_mark:";; *) icon=":x:";; esac
+              echo "| ${n%%_*} | ${n#*_} | $icon ${r:-did not finish} |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Failure report
         if: failure()
         run: |
