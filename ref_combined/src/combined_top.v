@@ -2198,7 +2198,7 @@ module combined_top #(
             
             // check norm
             mode_norm   = G2 ;
-            validi_norm = (web1_op[1] && ctrfsm2 > 192) ? 1 : 0;
+            validi_norm = (web1_op[1] && ctrfsm2 >= 192) ? 1 : 0; // all 64 beats of the last INTT pass
             di_norm = dib1_op[1];
             ctrfsm2_next = (done_op[1]) ? 0 
                         : (web1_op[1]) ? ctrfsm2 + 1 : ctrfsm2;

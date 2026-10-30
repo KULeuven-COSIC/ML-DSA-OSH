@@ -28,7 +28,7 @@ make sim SIM=verilator TB=sign VEC=gen      # generated vectors, GHDL + Verilato
 make lint                                   # GHDL + Verilator lint
 ```
 
-`SIM=xsim` sources the Vivado settings from `$VIVADO_SETTINGS` if `xvlog` is not on the `PATH`. `SIM=verilator` translates the VHDL Keccak core to Verilog with GHDL and needs `ghdl` and `verilator` (>= 5), e.g. from the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build). Failing vectors can be mapped back to their Wycheproof tcId or generator category with `python3 model/report.py <sim.log> <vector dir>`. GitHub Actions runs the model check, lint and all of these vector sets on every push.
+`SIM=xsim` sources the Vivado settings from `$VIVADO_SETTINGS` if `xvlog` is not on the `PATH`. `SIM=verilator` translates the VHDL Keccak core to Verilog with GHDL and needs `ghdl` and `verilator` (>= 5), e.g. from the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build). `tb_sign_top` additionally checks that the z, c·t0 and r0 bound checks see every coefficient of every signing attempt. Failing vectors can be mapped back to their Wycheproof tcId or generator category with `python3 model/report.py <sim.log> <vector dir>`. GitHub Actions runs the model check, lint and all of these vector sets on every push.
 
 ## :book: Bibliography
 
