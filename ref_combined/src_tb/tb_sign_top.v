@@ -898,6 +898,28 @@ module tb_sign_top;
         endcase
     end
   
+  // Norm-check coverage (white-box): in every signing attempt, the z, c*t0 and r0 bound
+  // checks must see every coefficient, i.e. L*64, K*64 and K*64 beats of 4 coefficients.
+  // DUT.cstate2 encodings: FSM2_NTTI_Z = 7, FSM2_NTTI_CT0 = 9, FSM2_SUB_W0_CS2 = 10, FSM2_MAKEHINT = 11.
+  integer nb_z = 0, nb_ct0 = 0, nb_r0 = 0, tb_K, tb_L;
+  reg [4:0] cstate2_q = 0;
+  always @(posedge clk) begin
+      tb_K = (sec_lvl == 2) ? 4 : (sec_lvl == 3) ? 6 : 8;
+      tb_L = (sec_lvl == 2) ? 4 : (sec_lvl == 3) ? 5 : 7;
+      cstate2_q <= DUT.cstate2;
+      if (DUT.validi_norm && DUT.cstate2 == 5'd7)  nb_z   = nb_z + 1;
+      if (DUT.validi_norm && DUT.cstate2 == 5'd9)  nb_ct0 = nb_ct0 + 1;
+      if (DUT.validi_norm && DUT.cstate2 == 5'd10) nb_r0  = nb_r0 + 1;
+      if (DUT.cstate2 == 5'd11 && cstate2_q != 5'd11) begin
+          if (nb_z != tb_L*64 || nb_ct0 != tb_K*64 || nb_r0 != tb_K*64) begin
+              $display("[Sign, KAT #%0d] WRONG: norm check saw %0d/%0d (z), %0d/%0d (ct0), %0d/%0d (r0) beats",
+                       c, nb_z, tb_L*64, nb_ct0, tb_K*64, nb_r0, tb_K*64);
+              vec_err = 1;
+          end
+          nb_z = 0; nb_ct0 = 0; nb_r0 = 0;
+      end
+  end
+
   always #(`P/2) clk = ~clk;
   
 
