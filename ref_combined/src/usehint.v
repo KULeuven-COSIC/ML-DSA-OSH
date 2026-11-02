@@ -64,7 +64,8 @@ module usehint #(
         output reg poly_ready_i,
         output reg [OUTPUT_W*COEFF_W-1:0] poly_o,
         output reg poly_valid_o,
-        input      poly_ready_o
+        input      poly_ready_o,
+        output reg hint_invalid // malformed hint encoding (FIPS 204, Alg. 21)
     );
     
     reg [7:0]   hint_cnt [7:0];
@@ -85,7 +86,10 @@ module usehint #(
     reg [6:0] hint_addrlen;
     reg [3:0] num_hints;
     reg [7:0] next_hint;
-    reg [10:0] hint_offset;
+    reg [11:0] hint_offset; // up to 256*8: must not wrap for K = 8
+    reg [7:0]  prev_hint;
+    reg [11:0] prev_offset;
+    reg        cnt_invalid;
     
     localparam
         INIT         = 2'd0,
@@ -135,13 +139,22 @@ module usehint #(
         if (ctr >= hint_cnt[7] && K == 8)
            hint_offset = 256*(7+1);
             
-        // Number of addresses in hint
+        // Number of addresses in hint (omega)
         case(sec_lvl)
         2: hint_addrlen = LVL2_LEN;
         3: hint_addrlen = LVL3_LEN;
         5: hint_addrlen = LVL5_LEN;
         default: hint_addrlen = LVL2_LEN;
         endcase
+        
+        // Hint counts must be non-decreasing and at most omega
+        cnt_invalid = 0;
+        for (i = 0; i < 8; i = i + 1)
+            if (i < K && hint_cnt[i] > hint_addrlen)
+                cnt_invalid = 1;
+        for (i = 1; i < 8; i = i + 1)
+            if (i < K && hint_cnt[i] < hint_cnt[i-1])
+                cnt_invalid = 1;
     
         case(sec_lvl)
         2: num_hints = 4'd4;
@@ -193,7 +206,8 @@ module usehint #(
             pos_next = 0;
         end
         EXPAND_HINT: begin
-            ctr_next = (ctr+1 >= hint_cnt[K-1]) ?  0 : ctr + 1;
+            // visit all omega index bytes, so padding can be checked as well
+            ctr_next = (ctr+1 >= hint_addrlen) ?  0 : ctr + 1;
             pos_next = pos + 1;
         end
         APPLY_HINT: begin
@@ -208,6 +222,7 @@ module usehint #(
         if (rst) begin
             state <= INIT;
             ctr   <= 0;
+            hint_invalid <= 0;
         end else begin
             ctr <= ctr_next;  
             pos <= pos_next;      
@@ -216,6 +231,8 @@ module usehint #(
                 poly_num  <= 0;
                 hint_addr <= 0;
                 hint_poly <= 0;
+                // kept after APPLY_HINT returns here, until the verdict is read
+                hint_invalid <= (start) ? 0 : hint_invalid;
                 state <= (start) ? RECEIVE_HINT : INIT;
             end
             RECEIVE_HINT: begin
@@ -229,8 +246,20 @@ module usehint #(
                 state <= (valid_i && (ctr+1)*8 > hint_addrlen+num_hints) ? EXPAND_HINT : RECEIVE_HINT;
             end
             EXPAND_HINT: begin
-                hint_poly[next_hint+hint_offset] <= 1;
-                state <= (ctr+1 >= hint_cnt[K-1]) ? APPLY_HINT : EXPAND_HINT;
+                if (ctr < hint_cnt[K-1]) begin
+                    hint_poly[next_hint+hint_offset] <= 1;
+                    // indices within one polynomial must be strictly increasing
+                    if (ctr != 0 && hint_offset == prev_offset && next_hint <= prev_hint)
+                        hint_invalid <= 1;
+                end else if (next_hint != 0) begin
+                    // unused index bytes must be zero
+                    hint_invalid <= 1;
+                end
+                if (cnt_invalid)
+                    hint_invalid <= 1;
+                prev_hint   <= next_hint;
+                prev_offset <= hint_offset;
+                state <= (ctr+1 >= hint_addrlen) ? APPLY_HINT : EXPAND_HINT;
             end
             APPLY_HINT: begin
                 state <= (ctr == K*256) ? INIT : APPLY_HINT;
