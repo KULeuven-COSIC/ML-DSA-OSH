@@ -1,6 +1,7 @@
 # Simulation / verification entry points. Examples:
 #   make sim TB=verify                     # NIST KATs with Vivado xsim
 #   make sim TB=verify VEC=wycheproof      # Wycheproof verify vectors
+#   make sim TB=sign VEC=makehint          # signatures that hit the MakeHint boundary (issue #1)
 #   make sim TB=sign VEC=gen SIM=verilator # freshly generated vectors with GHDL + Verilator
 #   make lint
 #   make model                             # check the Python reference model against the KATs
@@ -17,6 +18,7 @@ WYCHEPROOF_URL    := https://raw.githubusercontent.com/C2SP/wycheproof/$(WYCHEPR
 
 BUILD := sim/build
 VEC_DIR_kat        := KAT
+VEC_DIR_makehint   := vectors/makehint_boundary
 VEC_DIR_gen        := $(BUILD)/vectors/gen
 VEC_DIR_wycheproof := $(BUILD)/vectors/wycheproof
 VEC_DIR := $(VEC_DIR_$(VEC))
@@ -31,7 +33,7 @@ DEFS_verilator = -DNUM_TV_44=$(call count,44) -DNUM_TV_65=$(call count,65) -DNUM
 
 .PHONY: sim lint model vectors gen wycheproof clean
 
-sim: $(if $(filter kat,$(VEC)),,$(VEC_DIR)/SigVer_pk_87.txt)
+sim: $(if $(filter kat makehint,$(VEC)),,$(VEC_DIR)/SigVer_pk_87.txt)
 	sim/run_$(SIM).sh $(TB) $(VEC_DIR) $(DEFS_$(SIM))
 
 lint:

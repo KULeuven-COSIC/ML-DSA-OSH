@@ -117,8 +117,9 @@ module makehint #(
         end
         endcase
         
+        // a0 > gamma2 || a0 < -gamma2 || (a0 == -gamma2 && a1 != 0), with a0 in [0, Q)
         for (i = 0; i < 4; i = i + 1)
-            hint_needed[i] = !(poly0_i[24*i+:24] <= GAMMA2 || poly0_i[24*i+:24] > Q-GAMMA2) || (poly0_i[24*i+:24] == Q-GAMMA2 && poly1_i[24*i+:24] != 0);
+            hint_needed[i] = !(poly0_i[24*i+:24] <= GAMMA2 || poly0_i[24*i+:24] >= Q-GAMMA2) || (poly0_i[24*i+:24] == Q-GAMMA2 && poly1_i[24*i+:24] != 0);
         
         if (rej) begin
             reject_hint = 1;
