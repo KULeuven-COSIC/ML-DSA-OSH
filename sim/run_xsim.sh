@@ -13,8 +13,7 @@ VEC="$(cd "${2:-$ROOT/KAT}" && pwd)"
 shift $(( $# >= 2 ? 2 : 1 ))
 
 if ! command -v xvlog >/dev/null 2>&1; then
-    # Site default (KU Leuven ESAT); override with VIVADO_SETTINGS=/path/to/settings64.sh
-    VIVADO_SETTINGS="${VIVADO_SETTINGS:-$(eval echo ~micasusr)/design/scripts/xilinx_vivado_2021.1.rc}"
+    : "${VIVADO_SETTINGS:?xvlog not on PATH; set VIVADO_SETTINGS=/path/to/settings64.sh}"
     # shellcheck disable=SC1090
     source "$VIVADO_SETTINGS" >/dev/null
 fi
