@@ -17,6 +17,7 @@ Test vectors, all in the same line-based format as [KAT](KAT) (`SigVer_result`: 
 
 * the NIST KATs in [KAT](KAT);
 * [vectors/makehint_boundary](vectors/makehint_boundary): signatures whose computation hits the MakeHint boundary a0 = −γ2, a1 = 0 (found with [model/find_makehint_boundary.py](model/find_makehint_boundary.py); about 1 in 10⁴ signatures, so random KATs miss it);
+* [vectors/expanda_reject](vectors/expanda_reject): keys whose ExpandA has two rejected candidates followed by an accepted one in the same sampler cycle (KeyGen, SigGen, SigVer; found with [model/find_expanda_reject.py](model/find_expanda_reject.py); about 0.2% of ML-DSA-87 keys);
 * the [C2SP Wycheproof](https://github.com/C2SP/wycheproof) ML-DSA verify vectors (pinned commit, downloaded and converted by `make wycheproof`);
 * fresh vectors from the [dilithium-py](https://github.com/GiacomoPope/dilithium-py) reference model (`make gen SEED=<n> N=<n>`), including malformed signatures that isolate single Verify checks (z bound, hint encoding, zero hints, ...). See [model/gen_vectors.py](model/gen_vectors.py).
 
@@ -27,6 +28,7 @@ make sim SIM=xsim TB=verify                 # NIST KATs, Vivado xsim (TB = keyge
 make sim SIM=xsim TB=verify VEC=wycheproof  # Wycheproof vectors
 make sim SIM=verilator TB=sign VEC=gen      # generated vectors, GHDL + Verilator
 make sim TB=sign VEC=makehint               # MakeHint boundary vectors
+make sim TB=keygen VEC=expanda              # ExpandA rejection vectors (also sign, verify)
 make lint                                   # GHDL + Verilator lint
 ```
 

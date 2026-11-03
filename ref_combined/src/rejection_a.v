@@ -87,7 +87,7 @@ module rejection_a #(
         3'bx11:  sipo_out_in = {rej_lane2, rej_lane1, rej_lane0}; 
         3'bx01:  sipo_out_in = {23'd0,     rej_lane2, rej_lane0}; 
         3'bx10:  sipo_out_in = {23'd0,     rej_lane2, rej_lane1};  
-        3'b100:  sipo_out_in = {23'd0,     23'd0,     rej_lane0};  
+        3'b100:  sipo_out_in = {23'd0,     23'd0,     rej_lane2};  
         default: sipo_out_in = {23'd0,     23'd0,     23'd0    }; 
         endcase
 
